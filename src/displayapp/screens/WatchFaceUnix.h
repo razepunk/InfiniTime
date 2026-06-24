@@ -26,16 +26,17 @@ namespace Pinetime {
         Controllers::DateTime& dateTimeController;
         const Controllers::Settings& settingsController;
 
-        // Fractional-second interpolation: the clock only advances in whole
-        // seconds, so we anchor to each second boundary and count LVGL ms ticks.
+        // Clock only has 1s resolution -> anchor each second, interpolate ms.
         uint32_t lastSecs = 0;
         uint32_t msAtSecond = 0;
 
-        lv_obj_t* label_caption = nullptr;
-        lv_obj_t* label_epoch = nullptr;
-        lv_obj_t* label_hex = nullptr;
-        lv_obj_t* label_mode = nullptr;
-        lv_obj_t* bar = nullptr;
+        lv_obj_t* label_epoch = nullptr; // big, hue-cycling, with blinking cursor
+        lv_obj_t* label_hex = nullptr;   // 0x.... view of the epoch
+        lv_obj_t* label_human = nullptr; // YYYY-MM-DD HH:MM:SS
+        lv_obj_t* label_2038 = nullptr;  // seconds until the 2038 overflow
+        lv_obj_t* label_days = nullptr;  // days since 1970
+        lv_obj_t* bar = nullptr;         // sweeps full each second
+        lv_obj_t* bits[16] = {nullptr};  // low-16-bit binary "LED" row
 
         // LVGL 7 (this tree). On LVGL 8 branches this would be lv_timer_t*.
         lv_task_t* taskRefresh = nullptr;
