@@ -142,6 +142,13 @@ namespace Pinetime {
       void GoToRunning();
       void GoToSleep();
       void UpdateMotion();
+      
+      // Shake-to-skip-track
+      int16_t lastShakeX = 0;
+      int16_t lastShakeY = 0;
+      int16_t lastShakeZ = 0;
+      TickType_t lastSkipTime = 0;
+
       static constexpr TickType_t batteryMeasurementPeriod = pdMS_TO_TICKS(10 * 60 * 1000);
 
       SystemMonitor monitor;
