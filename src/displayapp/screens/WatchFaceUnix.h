@@ -33,14 +33,12 @@ namespace Pinetime {
         lv_obj_t* label_epoch = nullptr;
         lv_obj_t* label_mode = nullptr;
 
-        // LVGL 8.x. On older (LVGL 7) branches this is lv_task_t*.
-        lv_timer_t* taskRefresh = nullptr;
+        // LVGL 7 (this tree). On LVGL 8 branches this would be lv_timer_t*.
+        lv_task_t* taskRefresh = nullptr;
       };
     }
 
-    // ---- Watchface registration (current `main` app-registry) ----
-    // If your branch registers differently, delete this block and wire it up
-    // the same way you did your previous epoch face.
+    // ---- Watchface registration (app-registry) ----
     template <>
     struct WatchFaceTraits<WatchFace::Unix> {
       static constexpr WatchFace watchFace = WatchFace::Unix;
