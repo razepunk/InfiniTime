@@ -26,12 +26,16 @@ namespace Pinetime {
         Controllers::DateTime& dateTimeController;
         const Controllers::Settings& settingsController;
 
-        // Only redraw when the second actually ticks over.
-        uint32_t lastShown = 0;
+        // Fractional-second interpolation: the clock only advances in whole
+        // seconds, so we anchor to each second boundary and count LVGL ms ticks.
+        uint32_t lastSecs = 0;
+        uint32_t msAtSecond = 0;
 
         lv_obj_t* label_caption = nullptr;
         lv_obj_t* label_epoch = nullptr;
+        lv_obj_t* label_hex = nullptr;
         lv_obj_t* label_mode = nullptr;
+        lv_obj_t* bar = nullptr;
 
         // LVGL 7 (this tree). On LVGL 8 branches this would be lv_timer_t*.
         lv_task_t* taskRefresh = nullptr;
