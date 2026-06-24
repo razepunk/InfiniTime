@@ -455,6 +455,23 @@ void SystemTask::UpdateMotion() {
 
   motionController.Update(motionValues.x, motionValues.y, motionValues.z, motionValues.steps);
 
+  // ---- Shake-to-skip-track ----
+  // Sends "next track" on a deliberate shake WHILE music is playing.
+  // Reuses the Shake-wake metric but demands a stronger shake (x2) so a normal
+  // wrist-raise won't skip. Requires Gadgetbridge media control connected.
+  {
+    constexpr TickType_t skipDebounce = pdMS_TO_TICKS(1200);
+    const int32_t skipThreshold = settingsController.GetShakeThreshold() * 2; // tune this
+    const TickType_t now = xTaskGetTickCount();
+
+    if (nimbleController.music().isPlaying() &&
+        static_cast<int32_t>(motionController.CurrentShakeSpeed()) > skipThreshold &&
+        (now - lastSkipTime) > skipDebounce) {
+      lastSkipTime = now;
+      nimbleController.music().event(Pinetime::Controllers::MusicService::EVENT_MUSIC_NEXT);
+    }
+  }
+
   if (settingsController.GetNotificationStatus() != Controllers::Settings::Notification::Sleep) {
     if ((settingsController.isWakeUpModeOn(Pinetime::Controllers::Settings::WakeUpMode::RaiseWrist) &&
          motionController.ShouldRaiseWake()) ||
