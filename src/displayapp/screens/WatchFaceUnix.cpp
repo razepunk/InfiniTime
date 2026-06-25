@@ -1,4 +1,5 @@
 #include "displayapp/screens/WatchFaceUnix.h"
+#include <cstdlib>
 
 using namespace Pinetime::Applications::Screens;
 
@@ -19,11 +20,41 @@ namespace {
   lv_color_t OffColor() {
     return lv_color_hex(0x1E1E1E);
   }
+
+  // Fill a rain column label with a vertical strip of random hex digits.
+  void FillRainText(lv_obj_t* label) {
+    static const char HEXCH[] = "0123456789ABCDEF";
+    char buf[12];
+    int p = 0;
+    for (int k = 0; k < 5; k++) {
+      buf[p++] = HEXCH[rand() & 15];
+      if (k < 4) {
+        buf[p++] = '\n';
+      }
+    }
+    buf[p] = '\0';
+    lv_label_set_text(label, buf);
+  }
 }
 
 WatchFaceUnix::WatchFaceUnix(Controllers::DateTime& dateTimeController,
                              const Controllers::Settings& settingsController)
   : dateTimeController {dateTimeController}, settingsController {settingsController} {
+
+  srand(lv_tick_get());
+
+  // ---- Matrix rain (created FIRST so it sits behind everything) ----
+  const int colW = 240 / RainCols;
+  for (int i = 0; i < RainCols; i++) {
+    rain[i] = lv_label_create(lv_scr_act(), nullptr);
+    lv_obj_set_style_local_text_color(rain[i], LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0x008800));
+    FillRainText(rain[i]);
+    rainY[i] = -(rand() % 240);
+    rainSpeed[i] = 2 + (rand() % 3);
+    lv_obj_set_pos(rain[i], i * colW + 4, rainY[i]);
+  }
+
+  // ---- Dashboard (on top of the rain) ----
 
   // Big epoch.milliseconds with blinking cursor (color set in Refresh)
   label_epoch = lv_label_create(lv_scr_act(), nullptr);
@@ -31,30 +62,29 @@ WatchFaceUnix::WatchFaceUnix(Controllers::DateTime& dateTimeController,
   lv_label_set_text_static(label_epoch, "0000000000.000_");
   lv_obj_align(label_epoch, lv_scr_act(), LV_ALIGN_CENTER, 0, -62);
 
-  // Hex view
   label_hex = lv_label_create(lv_scr_act(), nullptr);
   lv_obj_set_style_local_text_color(label_hex, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0x00AAAA));
   lv_label_set_text_static(label_hex, "0x00000000");
   lv_obj_align(label_hex, lv_scr_act(), LV_ALIGN_CENTER, 0, -40);
 
-  // Human-readable date + time (doubles as a normal clock)
   label_human = lv_label_create(lv_scr_act(), nullptr);
   lv_obj_set_style_local_text_color(label_human, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0xCCCCCC));
   lv_label_set_text_static(label_human, "0000-00-00 00:00:00");
   lv_obj_align(label_human, lv_scr_act(), LV_ALIGN_CENTER, 0, -19);
 
-  // Binary "LED" row: low 16 bits, MSB left -> LSB right (right side flips fast)
+  // Binary "LED" row: shared style for the static look, color set per second.
+  lv_style_init(&ledStyle);
+  lv_style_set_radius(&ledStyle, LV_STATE_DEFAULT, 2);
+  lv_style_set_border_width(&ledStyle, LV_STATE_DEFAULT, 0);
+  lv_style_set_bg_opa(&ledStyle, LV_STATE_DEFAULT, LV_OPA_COVER);
   for (int i = 0; i < 16; i++) {
     bits[i] = lv_obj_create(lv_scr_act(), nullptr);
     lv_obj_set_size(bits[i], 10, 10);
     lv_obj_align(bits[i], lv_scr_act(), LV_ALIGN_CENTER, i * 13 - 98, 3);
-    lv_obj_set_style_local_radius(bits[i], LV_OBJ_PART_MAIN, LV_STATE_DEFAULT, 2);
-    lv_obj_set_style_local_border_width(bits[i], LV_OBJ_PART_MAIN, LV_STATE_DEFAULT, 0);
-    lv_obj_set_style_local_bg_opa(bits[i], LV_OBJ_PART_MAIN, LV_STATE_DEFAULT, LV_OPA_COVER);
+    lv_obj_add_style(bits[i], LV_OBJ_PART_MAIN, &ledStyle);
     lv_obj_set_style_local_bg_color(bits[i], LV_OBJ_PART_MAIN, LV_STATE_DEFAULT, OffColor());
   }
 
-  // Second-sweep bar (indicator color set in Refresh to match the epoch hue)
   bar = lv_bar_create(lv_scr_act(), nullptr);
   lv_obj_set_size(bar, 180, 6);
   lv_obj_align(bar, lv_scr_act(), LV_ALIGN_CENTER, 0, 24);
@@ -62,13 +92,11 @@ WatchFaceUnix::WatchFaceUnix(Controllers::DateTime& dateTimeController,
   lv_bar_set_anim_time(bar, 0);
   lv_obj_set_style_local_bg_color(bar, LV_BAR_PART_BG, LV_STATE_DEFAULT, lv_color_hex(0x111111));
 
-  // T-2038 countdown (amber)
   label_2038 = lv_label_create(lv_scr_act(), nullptr);
   lv_obj_set_style_local_text_color(label_2038, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0xFFAA00));
   lv_label_set_text_static(label_2038, "T-2038 0s");
   lv_obj_align(label_2038, lv_scr_act(), LV_ALIGN_CENTER, 0, 45);
 
-  // Days since epoch (dim)
   label_days = lv_label_create(lv_scr_act(), nullptr);
   lv_obj_set_style_local_text_color(label_days, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0x666666));
   lv_label_set_text_static(label_days, "DAY 0");
@@ -84,19 +112,28 @@ WatchFaceUnix::~WatchFaceUnix() {
 }
 
 void WatchFaceUnix::Refresh() {
-  // Whole seconds from the RTC (1s resolution). NOTE: local-as-if-UTC unless
-  // your companion syncs UTC; add your offset to 'secs' for true Unix UTC.
   uint32_t secs = std::chrono::duration_cast<std::chrono::seconds>(
                     dateTimeController.CurrentDateTime().time_since_epoch())
                     .count();
   uint32_t nowMs = lv_tick_get();
 
-  // Everything that only changes once per second is updated on the boundary.
+  // ---- Matrix rain: move every column, shimmer one per frame ----
+  for (int i = 0; i < RainCols; i++) {
+    rainY[i] += rainSpeed[i];
+    if (rainY[i] > 240) {
+      rainY[i] = -(20 + (rand() % 160)); // restart above the top, staggered
+      rainSpeed[i] = 2 + (rand() % 3);
+      FillRainText(rain[i]);
+    }
+    lv_obj_set_y(rain[i], rainY[i]);
+  }
+  FillRainText(rain[rand() % RainCols]); // shimmer
+
+  // ---- Per-second updates ----
   if (secs != lastSecs) {
     lastSecs = secs;
     msAtSecond = nowMs;
 
-    // Hue cycles the full wheel once per minute (6 deg/sec).
     lv_color_t hue = lv_color_hsv_to_rgb((secs % 60) * 6, 100, 100);
     lv_obj_set_style_local_text_color(label_epoch, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, hue);
     lv_obj_set_style_local_bg_color(bar, LV_BAR_PART_INDIC, LV_STATE_DEFAULT, hue);
@@ -118,11 +155,13 @@ void WatchFaceUnix::Refresh() {
 
     uint32_t remain = (secs < Y2038) ? (Y2038 - secs) : 0;
     lv_label_set_text_fmt(label_2038, "T-2038 %lus", static_cast<unsigned long>(remain));
+    lv_obj_align(label_2038, lv_scr_act(), LV_ALIGN_CENTER, 0, 45); // re-center: text width changes
 
     lv_label_set_text_fmt(label_days, "DAY %lu", static_cast<unsigned long>(secs / 86400u));
+    lv_obj_align(label_days, lv_scr_act(), LV_ALIGN_CENTER, 0, 64); // re-center: text width changes
   }
 
-  // Sub-second part, updated every frame.
+  // ---- Sub-second part, every frame ----
   uint32_t frac = nowMs - msAtSecond;
   if (frac > 999) {
     frac = 999;
