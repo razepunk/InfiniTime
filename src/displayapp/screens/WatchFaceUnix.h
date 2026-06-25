@@ -29,11 +29,14 @@ namespace Pinetime {
         uint32_t lastSecs = 0;
         uint32_t msAtSecond = 0;
 
-        // Matrix-rain backdrop (drawn behind the dashboard)
-        static constexpr uint8_t RainCols = 12;
-        lv_obj_t* rain[RainCols] = {nullptr};
-        int16_t rainY[RainCols] = {0};
-        uint8_t rainSpeed[RainCols] = {0};
+        // Matrix rain: per column a bright head char + a dim trail string,
+        // stepping down in whole character-cells (only redraws on step frames).
+        static constexpr uint8_t RainCols = 10;
+        lv_obj_t* rainHead[RainCols] = {nullptr};
+        lv_obj_t* rainTrail[RainCols] = {nullptr};
+        int16_t rainHeadY[RainCols] = {0};
+        uint8_t rainStepEvery[RainCols] = {0};
+        uint8_t rainStepCnt[RainCols] = {0};
 
         lv_style_t ledStyle; // shared static styling for the binary LEDs
 

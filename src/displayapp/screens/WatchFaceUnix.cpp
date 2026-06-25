@@ -13,6 +13,8 @@ namespace {
   }
 
   constexpr uint32_t Y2038 = 2147483647u; // INT32_MAX: the 32-bit epoch overflow
+  constexpr int RainCell = 16;            // pixel height of one rain cell-step
+  constexpr int RainTrail = 4;            // trail length in cells
 
   lv_color_t OnColor() {
     return lv_color_hex(0x00FF00);
@@ -21,19 +23,28 @@ namespace {
     return lv_color_hex(0x1E1E1E);
   }
 
-  // Fill a rain column label with a vertical strip of random hex digits.
-  void FillRainText(lv_obj_t* label) {
+  char RandHex() {
     static const char HEXCH[] = "0123456789ABCDEF";
-    char buf[12];
+    return HEXCH[rand() & 15];
+  }
+
+  // Dim trail: a vertical strip of n random hex digits.
+  void FillTrail(lv_obj_t* label, int n) {
+    char buf[16];
     int p = 0;
-    for (int k = 0; k < 5; k++) {
-      buf[p++] = HEXCH[rand() & 15];
-      if (k < 4) {
+    for (int k = 0; k < n; k++) {
+      buf[p++] = RandHex();
+      if (k < n - 1) {
         buf[p++] = '\n';
       }
     }
     buf[p] = '\0';
     lv_label_set_text(label, buf);
+  }
+
+  void SetHead(lv_obj_t* label) {
+    char b[2] = {RandHex(), '\0'};
+    lv_label_set_text(label, b);
   }
 }
 
@@ -46,17 +57,26 @@ WatchFaceUnix::WatchFaceUnix(Controllers::DateTime& dateTimeController,
   // ---- Matrix rain (created FIRST so it sits behind everything) ----
   const int colW = 240 / RainCols;
   for (int i = 0; i < RainCols; i++) {
-    rain[i] = lv_label_create(lv_scr_act(), nullptr);
-    lv_obj_set_style_local_text_color(rain[i], LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0x008800));
-    FillRainText(rain[i]);
-    rainY[i] = -(rand() % 240);
-    rainSpeed[i] = 2 + (rand() % 3);
-    lv_obj_set_pos(rain[i], i * colW + 4, rainY[i]);
+    const int x = i * colW + 6;
+
+    rainTrail[i] = lv_label_create(lv_scr_act(), nullptr);
+    lv_obj_set_style_local_text_color(rainTrail[i], LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0x006600));
+    FillTrail(rainTrail[i], RainTrail);
+
+    rainHead[i] = lv_label_create(lv_scr_act(), nullptr);
+    lv_obj_set_style_local_text_color(rainHead[i], LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0x77FF99));
+    SetHead(rainHead[i]);
+
+    rainHeadY[i] = -(rand() % 200);
+    rainStepEvery[i] = 2 + (rand() % 4); // step every 2..5 frames -> varied speeds
+    rainStepCnt[i] = rand() % 4;         // phase offset so columns don't sync
+
+    lv_obj_set_pos(rainTrail[i], x, rainHeadY[i] - RainTrail * RainCell);
+    lv_obj_set_pos(rainHead[i], x, rainHeadY[i]);
   }
 
   // ---- Dashboard (on top of the rain) ----
 
-  // Big epoch.milliseconds with blinking cursor (color set in Refresh)
   label_epoch = lv_label_create(lv_scr_act(), nullptr);
   lv_obj_set_style_local_text_font(label_epoch, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, &jetbrains_mono_bold_20);
   lv_label_set_text_static(label_epoch, "0000000000.000_");
@@ -72,7 +92,6 @@ WatchFaceUnix::WatchFaceUnix(Controllers::DateTime& dateTimeController,
   lv_label_set_text_static(label_human, "0000-00-00 00:00:00");
   lv_obj_align(label_human, lv_scr_act(), LV_ALIGN_CENTER, 0, -19);
 
-  // Binary "LED" row: shared style for the static look, color set per second.
   lv_style_init(&ledStyle);
   lv_style_set_radius(&ledStyle, LV_STATE_DEFAULT, 2);
   lv_style_set_border_width(&ledStyle, LV_STATE_DEFAULT, 0);
@@ -117,17 +136,22 @@ void WatchFaceUnix::Refresh() {
                     .count();
   uint32_t nowMs = lv_tick_get();
 
-  // ---- Matrix rain: move every column, shimmer one per frame ----
+  // ---- Matrix rain: a column only moves (and redraws) on its step frames ----
   for (int i = 0; i < RainCols; i++) {
-    rainY[i] += rainSpeed[i];
-    if (rainY[i] > 240) {
-      rainY[i] = -(20 + (rand() % 160)); // restart above the top, staggered
-      rainSpeed[i] = 2 + (rand() % 3);
-      FillRainText(rain[i]);
+    if (++rainStepCnt[i] < rainStepEvery[i]) {
+      continue;
     }
-    lv_obj_set_y(rain[i], rainY[i]);
+    rainStepCnt[i] = 0;
+    rainHeadY[i] += RainCell;
+    if (rainHeadY[i] > 240) {
+      rainHeadY[i] = -RainCell * (RainTrail + (rand() % 6)); // restart above, staggered
+      rainStepEvery[i] = 2 + (rand() % 4);
+    }
+    SetHead(rainHead[i]);            // new leading glyph each step (cascade)
+    FillTrail(rainTrail[i], RainTrail);
+    lv_obj_set_y(rainHead[i], rainHeadY[i]);
+    lv_obj_set_y(rainTrail[i], rainHeadY[i] - RainTrail * RainCell);
   }
-  FillRainText(rain[rand() % RainCols]); // shimmer
 
   // ---- Per-second updates ----
   if (secs != lastSecs) {
