@@ -1,5 +1,6 @@
 #include "displayapp/screens/WatchFaceUnix.h"
 #include <cstdlib>
+#include <cstdio>
 
 using namespace Pinetime::Applications::Screens;
 
@@ -28,9 +29,8 @@ namespace {
     return HEXCH[rand() & 15];
   }
 
-  // Dim trail: a vertical strip of n random hex digits.
-  void FillTrail(lv_obj_t* label, int n) {
-    char buf[16];
+  // Writes into a caller-owned buffer and points the label at it (no alloc).
+  void FillTrail(lv_obj_t* label, char* buf, int n) {
     int p = 0;
     for (int k = 0; k < n; k++) {
       buf[p++] = RandHex();
@@ -39,12 +39,13 @@ namespace {
       }
     }
     buf[p] = '\0';
-    lv_label_set_text(label, buf);
+    lv_label_set_text_static(label, buf);
   }
 
-  void SetHead(lv_obj_t* label) {
-    char b[2] = {RandHex(), '\0'};
-    lv_label_set_text(label, b);
+  void SetHead(lv_obj_t* label, char* buf) {
+    buf[0] = RandHex();
+    buf[1] = '\0';
+    lv_label_set_text_static(label, buf);
   }
 }
 
@@ -61,15 +62,15 @@ WatchFaceUnix::WatchFaceUnix(Controllers::DateTime& dateTimeController,
 
     rainTrail[i] = lv_label_create(lv_scr_act(), nullptr);
     lv_obj_set_style_local_text_color(rainTrail[i], LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0x006600));
-    FillTrail(rainTrail[i], RainTrail);
+    FillTrail(rainTrail[i], rainTrailBuf[i], RainTrail);
 
     rainHead[i] = lv_label_create(lv_scr_act(), nullptr);
     lv_obj_set_style_local_text_color(rainHead[i], LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0x77FF99));
-    SetHead(rainHead[i]);
+    SetHead(rainHead[i], rainHeadBuf[i]);
 
     rainHeadY[i] = -(rand() % 200);
-    rainStepEvery[i] = 2 + (rand() % 4); // step every 2..5 frames -> varied speeds
-    rainStepCnt[i] = rand() % 4;         // phase offset so columns don't sync
+    rainStepEvery[i] = 2 + (rand() % 4);
+    rainStepCnt[i] = rand() % 4;
 
     lv_obj_set_pos(rainTrail[i], x, rainHeadY[i] - RainTrail * RainCell);
     lv_obj_set_pos(rainHead[i], x, rainHeadY[i]);
@@ -144,11 +145,11 @@ void WatchFaceUnix::Refresh() {
     rainStepCnt[i] = 0;
     rainHeadY[i] += RainCell;
     if (rainHeadY[i] > 240) {
-      rainHeadY[i] = -RainCell * (RainTrail + (rand() % 6)); // restart above, staggered
+      rainHeadY[i] = -RainCell * (RainTrail + (rand() % 6));
       rainStepEvery[i] = 2 + (rand() % 4);
     }
-    SetHead(rainHead[i]);            // new leading glyph each step (cascade)
-    FillTrail(rainTrail[i], RainTrail);
+    SetHead(rainHead[i], rainHeadBuf[i]);
+    FillTrail(rainTrail[i], rainTrailBuf[i], RainTrail);
     lv_obj_set_y(rainHead[i], rainHeadY[i]);
     lv_obj_set_y(rainTrail[i], rainHeadY[i] - RainTrail * RainCell);
   }
@@ -162,15 +163,17 @@ void WatchFaceUnix::Refresh() {
     lv_obj_set_style_local_text_color(label_epoch, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, hue);
     lv_obj_set_style_local_bg_color(bar, LV_BAR_PART_INDIC, LV_STATE_DEFAULT, hue);
 
-    lv_label_set_text_fmt(label_hex, "0x%lX", static_cast<unsigned long>(secs));
+    snprintf(hexBuf, sizeof(hexBuf), "0x%lX", static_cast<unsigned long>(secs));
+    lv_label_set_text_static(label_hex, hexBuf);
 
-    lv_label_set_text_fmt(label_human, "%04d-%02d-%02d %02d:%02d:%02d",
-                          static_cast<int>(dateTimeController.Year()),
-                          static_cast<int>(dateTimeController.Month()),
-                          static_cast<int>(dateTimeController.Day()),
-                          static_cast<int>(dateTimeController.Hours()),
-                          static_cast<int>(dateTimeController.Minutes()),
-                          static_cast<int>(dateTimeController.Seconds()));
+    snprintf(humanBuf, sizeof(humanBuf), "%04d-%02d-%02d %02d:%02d:%02d",
+             static_cast<int>(dateTimeController.Year()),
+             static_cast<int>(dateTimeController.Month()),
+             static_cast<int>(dateTimeController.Day()),
+             static_cast<int>(dateTimeController.Hours()),
+             static_cast<int>(dateTimeController.Minutes()),
+             static_cast<int>(dateTimeController.Seconds()));
+    lv_label_set_text_static(label_human, humanBuf);
 
     for (int i = 0; i < 16; i++) {
       bool on = (secs >> (15 - i)) & 1u;
@@ -178,11 +181,13 @@ void WatchFaceUnix::Refresh() {
     }
 
     uint32_t remain = (secs < Y2038) ? (Y2038 - secs) : 0;
-    lv_label_set_text_fmt(label_2038, "T-2038 %lus", static_cast<unsigned long>(remain));
-    lv_obj_align(label_2038, lv_scr_act(), LV_ALIGN_CENTER, 0, 45); // re-center: text width changes
+    snprintf(buf2038, sizeof(buf2038), "T-2038 %lus", static_cast<unsigned long>(remain));
+    lv_label_set_text_static(label_2038, buf2038);
+    lv_obj_align(label_2038, lv_scr_act(), LV_ALIGN_CENTER, 0, 45); // re-center: width changes
 
-    lv_label_set_text_fmt(label_days, "DAY %lu", static_cast<unsigned long>(secs / 86400u));
-    lv_obj_align(label_days, lv_scr_act(), LV_ALIGN_CENTER, 0, 64); // re-center: text width changes
+    snprintf(daysBuf, sizeof(daysBuf), "DAY %lu", static_cast<unsigned long>(secs / 86400u));
+    lv_label_set_text_static(label_days, daysBuf);
+    lv_obj_align(label_days, lv_scr_act(), LV_ALIGN_CENTER, 0, 64); // re-center: width changes
   }
 
   // ---- Sub-second part, every frame ----
@@ -192,9 +197,10 @@ void WatchFaceUnix::Refresh() {
   }
 
   const char* cursor = ((nowMs / 500u) % 2u) ? "_" : " ";
-  lv_label_set_text_fmt(label_epoch, "%lu.%03lu%s",
-                        static_cast<unsigned long>(secs),
-                        static_cast<unsigned long>(frac),
-                        cursor);
+  snprintf(epochBuf, sizeof(epochBuf), "%lu.%03lu%s",
+           static_cast<unsigned long>(secs),
+           static_cast<unsigned long>(frac),
+           cursor);
+  lv_label_set_text_static(label_epoch, epochBuf);
   lv_bar_set_value(bar, static_cast<int16_t>(frac), LV_ANIM_OFF);
 }

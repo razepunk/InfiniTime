@@ -48,6 +48,16 @@ namespace Pinetime {
         lv_obj_t* bar = nullptr;
         lv_obj_t* bits[16] = {nullptr};
 
+        // Owned text buffers + lv_label_set_text_static() => zero per-frame
+        // LVGL heap allocation (prevents pool fragmentation / glitching).
+        char epochBuf[20] = {0};
+        char hexBuf[16] = {0};
+        char humanBuf[24] = {0};
+        char buf2038[24] = {0};
+        char daysBuf[16] = {0};
+        char rainHeadBuf[RainCols][2] = {{0}};
+        char rainTrailBuf[RainCols][16] = {{0}};
+
         // LVGL 7 (this tree). On LVGL 8 branches this would be lv_timer_t*.
         lv_task_t* taskRefresh = nullptr;
       };
