@@ -134,6 +134,7 @@ Music::Music(Pinetime::Controllers::MusicService& music) : musicService(music) {
   imgDisc = lv_img_create(lv_scr_act(), nullptr);
   lv_img_set_src_arr(imgDisc, &music_icon);
   lv_obj_align(imgDisc, nullptr, LV_ALIGN_IN_TOP_RIGHT, -15, 15);
+  lv_obj_set_style_local_image_recolor_opa(imgDisc, LV_IMG_PART_MAIN, LV_STATE_DEFAULT, LV_OPA_COVER);
 
   imgDiscAnim = lv_img_create(lv_scr_act(), nullptr);
   lv_img_set_src_arr(imgDiscAnim, &disc_f_1);
@@ -204,6 +205,10 @@ void Music::Refresh() {
   } else {
     lv_label_set_text_static(txtPlayPause, Symbols::play);
   }
+
+  hue = (hue + 2) % 360;
+  lv_obj_set_style_local_image_recolor(imgDisc, LV_IMG_PART_MAIN, LV_STATE_DEFAULT,
+                                       lv_color_hsv_to_rgb(hue, 100, 100));
 }
 
 void Music::UpdateLength() {
