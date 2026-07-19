@@ -592,13 +592,10 @@ const LV_ATTRIBUTE_MEM_ALIGN LV_ATTRIBUTE_LARGE_CONST LV_ATTRIBUTE_IMG_MUSIC_ICO
 };
 
 const lv_img_dsc_t music_icon = {
-    {
-        LV_IMG_CF_TRUE_COLOR_ALPHA,
-        0,
-        0,
-        48,
-        48
-    },
-    6912,
-    music_icon_map
+  .header.always_zero = 0,
+  .header.w = 48,
+  .header.h = 48,
+  .data_size = 48 * 48 * LV_IMG_PX_SIZE_ALPHA_BYTE,
+  .header.cf = LV_IMG_CF_TRUE_COLOR_ALPHA,
+  .data = music_icon_map,
 };

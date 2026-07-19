@@ -66,6 +66,9 @@ namespace Pinetime {
         /** For the spinning disc animation */
         bool frameB;
 
+        /** Hue for the cycling music icon recolor (0-359) */
+        uint16_t hue = 0;
+
         Pinetime::Controllers::MusicService& musicService;
 
         std::string artist;
