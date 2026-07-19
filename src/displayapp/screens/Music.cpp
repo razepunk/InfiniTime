@@ -190,7 +190,7 @@ void Music::Refresh() {
     lv_label_set_text_static(txtPlayPause, Symbols::pause);
 
     hue = (hue + 2) % 360;
-    int16_t wave = lv_trigo_sin(hue);
+    int16_t wave = _lv_trigo_sin(hue);
 
     // SPIN: one revolution per colour cycle
     lv_img_set_angle(imgDisc, hue * 10);
