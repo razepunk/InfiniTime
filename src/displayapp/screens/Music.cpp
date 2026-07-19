@@ -23,6 +23,7 @@
 #include "displayapp/icons/music/disc.c"
 #include "displayapp/icons/music/disc_f_1.c"
 #include "displayapp/icons/music/disc_f_2.c"
+#include "displayapp/icons/music/music_icon.c"
 #include "displayapp/InfiniTimeTheme.h"
 
 using namespace Pinetime::Applications::Screens;
@@ -129,14 +130,16 @@ Music::Music(Pinetime::Controllers::MusicService& music) : musicService(music) {
 
   pageIndicator.Create();
 
-  /** Init animation */
+  /** Init image: custom music icon (was the spinning disc). */
   imgDisc = lv_img_create(lv_scr_act(), nullptr);
-  lv_img_set_src_arr(imgDisc, &disc);
+  lv_img_set_src_arr(imgDisc, &music_icon);
   lv_obj_align(imgDisc, nullptr, LV_ALIGN_IN_TOP_RIGHT, -15, 15);
 
   imgDiscAnim = lv_img_create(lv_scr_act(), nullptr);
   lv_img_set_src_arr(imgDiscAnim, &disc_f_1);
   lv_obj_align(imgDiscAnim, nullptr, LV_ALIGN_IN_TOP_RIGHT, -15 - 32, 15);
+  // Single static icon requested: hide the spinning-highlight overlay.
+  lv_obj_set_hidden(imgDiscAnim, true);
 
   frameB = false;
 
