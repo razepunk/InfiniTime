@@ -242,6 +242,34 @@ namespace {
     auto* item = static_cast<Notifications::NotificationItem*>(obj->user_data);
     item->OnCallButtonEvent(obj, event);
   }
+
+  // Map a notification category to a glyph that is guaranteed to be in the
+  // standard font (i.e. present in Symbols.h). Categories without a dedicated
+  // glyph fall back to the bell. Email/SMS would use envelope/comment, but
+  // those glyphs are not in the bundled font yet -- see the Tier 2 note.
+  const char* CategoryIcon(Pinetime::Controllers::NotificationManager::Categories category) {
+    using Categories = Pinetime::Controllers::NotificationManager::Categories;
+    switch (category) {
+      case Categories::IncomingCall:
+      case Categories::MissedCall:
+        return Symbols::phone;
+      case Categories::Schedule:
+        return Symbols::clock;
+      case Categories::News:
+        return Symbols::list;
+      case Categories::Email:
+        return Symbols::info; // no envelope glyph in font (Tier 2)
+      case Categories::Sms:
+      case Categories::InstantMessage:
+        return Symbols::bell; // no comment glyph in font (Tier 2)
+      case Categories::HighProriotyAlert:
+      case Categories::SimpleAlert:
+      case Categories::VoiceMail:
+      case Categories::Unknown:
+      default:
+        return Symbols::bell;
+    }
+  }
 }
 
 Notifications::NotificationItem::NotificationItem(Pinetime::Controllers::AlertNotificationService& alertNotificationService,
@@ -285,6 +313,12 @@ Notifications::NotificationItem::NotificationItem(const char* title,
   lv_label_set_text_fmt(alert_count, "%i/%i", notifNr, notifNb);
   lv_obj_align(alert_count, nullptr, LV_ALIGN_IN_TOP_RIGHT, 0, 16);
 
+  // Category icon at the top-left, colored like the title.
+  lv_obj_t* alert_icon = lv_label_create(container, nullptr);
+  lv_obj_set_style_local_text_color(alert_icon, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, Colors::orange);
+  lv_label_set_text_static(alert_icon, CategoryIcon(category));
+  lv_obj_align(alert_icon, nullptr, LV_ALIGN_IN_TOP_LEFT, 0, 16);
+
   lv_obj_t* alert_type = lv_label_create(container, nullptr);
   lv_obj_set_style_local_text_color(alert_type, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, Colors::orange);
   if (title == nullptr) {
@@ -300,8 +334,9 @@ Notifications::NotificationItem::NotificationItem(const char* title,
     lv_label_refr_text(alert_type);
   }
   lv_label_set_long_mode(alert_type, LV_LABEL_LONG_SROLL_CIRC);
-  lv_obj_set_width(alert_type, 180);
-  lv_obj_align(alert_type, nullptr, LV_ALIGN_IN_TOP_LEFT, 0, 16);
+  // Narrow the title to make room for the icon, and place it just right of the icon.
+  lv_obj_set_width(alert_type, 180 - 26);
+  lv_obj_align(alert_type, alert_icon, LV_ALIGN_OUT_RIGHT_MID, 8, 0);
 
   lv_obj_t* alert_subject = lv_label_create(subject_container, nullptr);
   lv_label_set_long_mode(alert_subject, LV_LABEL_LONG_BREAK);
