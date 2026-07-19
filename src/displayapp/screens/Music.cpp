@@ -135,8 +135,8 @@ Music::Music(Pinetime::Controllers::MusicService& music) : musicService(music) {
   lv_img_set_src_arr(imgDisc, &music_icon);
   lv_obj_align(imgDisc, nullptr, LV_ALIGN_IN_TOP_RIGHT, -15, 15);
   lv_obj_set_style_local_image_recolor_opa(imgDisc, LV_IMG_PART_MAIN, LV_STATE_DEFAULT, LV_OPA_COVER);
-  lv_img_set_pivot(imgDisc, 24, 24);
-  lv_img_set_antialias(imgDisc, true);
+  // lv_img_set_pivot(imgDisc, 24, 24);
+  // lv_img_set_antialias(imgDisc, true);
 
   imgDiscAnim = lv_img_create(lv_scr_act(), nullptr);
   lv_img_set_src_arr(imgDiscAnim, &disc_f_1);
@@ -193,7 +193,7 @@ void Music::Refresh() {
     int16_t wave = _lv_trigo_sin(hue);
 
     // SPIN: one revolution per colour cycle
-    lv_img_set_angle(imgDisc, hue * 10);
+    // lv_img_set_angle(imgDisc, hue * 10);  // disabled: on-device transform crash
 
     // BEAT: register a beat every ~1s (reuses the old tick timer)
     TickType_t now = xTaskGetTickCount();
@@ -211,7 +211,7 @@ void Music::Refresh() {
 
     // BREATHE + beat kick
     int16_t breathe = (wave * 22) / 32767;
-    lv_img_set_zoom(imgDisc, 256 + breathe + beat);
+    // lv_img_set_zoom(imgDisc, 256 + breathe + beat);  // disabled: on-device transform crash
 
     // GLOW: brightness rides a sine while the hue cycles
     uint8_t val = 65 + (uint8_t)(((wave + 32767) * 35) / 65534);
@@ -219,8 +219,8 @@ void Music::Refresh() {
                                          lv_color_hsv_to_rgb(hue, 100, val));
   } else {
     lv_label_set_text_static(txtPlayPause, Symbols::play);
-    lv_img_set_angle(imgDisc, 0);
-    lv_img_set_zoom(imgDisc, 256);
+    // lv_img_set_angle(imgDisc, 0);  // disabled: on-device transform crash
+    // lv_img_set_zoom(imgDisc, 256);  // disabled: on-device transform crash
     lv_obj_set_style_local_image_recolor(imgDisc, LV_IMG_PART_MAIN, LV_STATE_DEFAULT,
                                          lv_color_hsv_to_rgb(hue, 100, 100));
   }
