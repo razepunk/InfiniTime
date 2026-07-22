@@ -186,8 +186,6 @@ void Music::Refresh() {
 
   if (playing) {
     lv_label_set_text_static(txtPlayPause, Symbols::pause);
-
-    // register a beat every ~1s (keeps the old auto-pause behaviour)
     if (xTaskGetTickCount() - 1024 >= lastIncrement) {
       lastIncrement = xTaskGetTickCount();
       if (currentPosition >= totalLength) {
@@ -195,16 +193,25 @@ void Music::Refresh() {
       }
     }
 
-    // hue cycle + glow (brightness rides a sine) -- recolor only, no transforms
+    // Transform-free (safe on-device): recolor + opa + realign.
     hue = (hue + 2) % 360;
     int16_t wave = _lv_trigo_sin(hue);
-    uint8_t val = 65 + (uint8_t)(((wave + 32767) * 35) / 65534);
+
+    uint8_t val = 60 + (uint8_t)(((wave + 32767) * 40) / 65534);
     lv_obj_set_style_local_image_recolor(imgDisc, LV_IMG_PART_MAIN, LV_STATE_DEFAULT,
                                          lv_color_hsv_to_rgb(hue, 100, val));
+
+    lv_opa_t opa = 180 + (lv_opa_t)(((wave + 32767) * 75) / 65534);
+    lv_obj_set_style_local_image_opa(imgDisc, LV_IMG_PART_MAIN, LV_STATE_DEFAULT, opa);
+
+    int16_t bob = (wave * 4) / 32767;
+    lv_obj_align(imgDisc, nullptr, LV_ALIGN_IN_TOP_RIGHT, -15, 15 + bob);
   } else {
     lv_label_set_text_static(txtPlayPause, Symbols::play);
     lv_obj_set_style_local_image_recolor(imgDisc, LV_IMG_PART_MAIN, LV_STATE_DEFAULT,
                                          lv_color_hsv_to_rgb(hue, 100, 100));
+    lv_obj_set_style_local_image_opa(imgDisc, LV_IMG_PART_MAIN, LV_STATE_DEFAULT, LV_OPA_COVER);
+    lv_obj_align(imgDisc, nullptr, LV_ALIGN_IN_TOP_RIGHT, -15, 15);
   }
 }
 
